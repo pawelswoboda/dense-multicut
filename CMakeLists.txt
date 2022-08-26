@@ -1,0 +1,13 @@
+PROJECT(dense-multicut LANGUAGES CXX)    
+cmake_minimum_required(VERSION 3.2)    
+
+add_library(dense-multicut INTERFACE)    
+target_include_directories(dense-multicut INTERFACE include/)    
+target_compile_features(dense-multicut INTERFACE cxx_std_17)    
+option(FAISS_ENABLE_GPU "" OFF)
+option(FAISS_ENABLE_PYTHON "" OFF)
+option(BUILD_TESTING "" OFF)
+add_subdirectory(external/faiss)
+target_include_directories(dense-multicut INTERFACE external/faiss)
+add_subdirectory(src)
+add_subdirectory(test)

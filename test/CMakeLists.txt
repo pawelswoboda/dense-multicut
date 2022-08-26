@@ -1,0 +1,2 @@
+add_executable(test_dense_gaec test_dense_gaec.cpp)
+target_link_libraries(test_dense_gaec PRIVATE dense-multicut faiss dense_gaec dense_gaec_adj_matrix)
