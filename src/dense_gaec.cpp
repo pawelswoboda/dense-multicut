@@ -1,70 +1,60 @@
 #include "dense_gaec.h"
+#include "feature_index.h"
 #include "dense_multicut_utils.h"
 #include "union_find.hxx"
+#include "time_measure_util.h"
 
 #include <vector>
 #include <queue>
 #include <numeric>
+#include <random>
 #include <iostream>
 
+#include <faiss/index_factory.h>
 #include <faiss/IndexFlat.h>
 #include <faiss/MetaIndexes.h>
+
+#include <faiss/IndexHNSW.h>
+
 #include <faiss/IndexIVFPQ.h>
 #include <faiss/index_io.h>
 #include <faiss/impl/AuxIndexStructures.h>
 
 namespace DENSE_MULTICUT {
 
-    std::vector<size_t> dense_gaec(const size_t n, const size_t d, std::vector<float> features)
+    std::vector<size_t> dense_gaec_impl(const size_t n, const size_t d, std::vector<float> features, const std::string index_str)
     {
+        MEASURE_FUNCTION_EXECUTION_TIME;
+        feature_index index(d, n, features, index_str);
+        assert(features.size() == n*d);
+
+        std::cout << "[dense gaec " << index_str << "] Find multicut for " << n << " nodes with features of dimension " << d << "\n";
+
         double multicut_cost = cost_disconnected(n, d, features);
 
-        // build up database of all features
-        faiss::IndexFlatIP underlying_index(d);
-        faiss::IndexIDMapTemplate<faiss::IndexFlatIP> index(&underlying_index);
-        std::vector<faiss::Index::idx_t> ids(n, faiss::MetricType::METRIC_INNER_PRODUCT);
-        std::iota(ids.begin(), ids.end(), 0);
-        index.add_with_ids(n, features.data(), ids.data());
-        std::cout << "[dense gaec] Added " << index.ntotal << " indices to table\n";
-
-        auto get_nearest_node = [&](const faiss::Index::idx_t id) -> std::tuple<faiss::Index::idx_t, float> {
-            float distance[2];
-            faiss::Index::idx_t nns[2];
-            index.search(1, features.data() + id*d, 2, distance, nns);
-            if(nns[0] == id)
-            {
-                assert(nns[1] != id);
-                return {nns[1], distance[1]};
-            }
-            else // duplicate entry
-            {
-                return {nns[0], distance[0]};
-            }
-        };
+        const size_t max_nr_ids = 2*n;
+        union_find uf(max_nr_ids);
 
         using pq_type = std::tuple<float, std::array<faiss::Index::idx_t,2>>;
         auto pq_comp = [](const pq_type& a, const pq_type& b) { return std::get<0>(a) < std::get<0>(b); };
         std::priority_queue<pq_type, std::vector<pq_type>, decltype(pq_comp)> pq(pq_comp);
-
-        const size_t max_nr_ids = 2*n;
         std::vector<std::vector<u_int32_t>> pq_pair(max_nr_ids);
 
-        // TODO: search all entries simultaneously
-        for(faiss::Index::idx_t i=0; i<n; ++i)
         {
-            const auto [nns, distance] = get_nearest_node(i);
-            if(distance > 0.0)
+            std::vector<faiss::Index::idx_t> all_indices(n);
+            std::iota(all_indices.begin(), all_indices.end(), 0);
+            const auto [nns, distances] = index.get_nearest_nodes(all_indices);
+            for(size_t i=0; i<n; ++i)
             {
-                pq.push({distance, {i,nns}});
-                pq_pair[nns].push_back(i);
-                //std::cout << "[dense gaec] push initial shortest edge " << i << " <-> " << nns << " with cost " << distance << "\n";
+                if(distances[i] > 0.0)
+                {
+                    pq.push({distances[i], {i,nns[i]}});
+                    pq_pair[nns[i]].push_back(i);
+                    //std::cout << "[dense gaec] push initial shortest edge " << i << " <-> " << nns << " with cost " << distance << "\n";
+                }
             }
         }
         //std::cout << "[dense gaec] Added " << pq.size() << " initial elements to priority queue\n";
-
-        std::vector<char> active(n, 1);
-        active.reserve(max_nr_ids);
-        union_find uf(max_nr_ids);
 
         // iteratively find pairs of features with highest inner product
         while(!pq.empty()) {
@@ -74,27 +64,11 @@ namespace DENSE_MULTICUT {
             const auto [i,j] = ij;
             assert(i != j);
             // check if edge is still present in contracted graph. This is true if both endpoints have not been contracted
-            assert(i < active.size() && j < active.size());
-            if(active[i] && active[j])
-            { 
-                std::cout << "[dense multicut] contracting edge " << i << " and " << j << " with edge cost " << distance << "\n";
+            if(index.node_active(i) && index.node_active(j))
+            {
+                std::cout << "[dense multicut " << index_str << "] contracting edge " << i << " and " << j << " with edge cost " << distance << "\n";
                 // contract edge:
-                // Remove original two features from index.
-                faiss::IDSelectorRange to_remove(i,i+1);
-                index.remove_ids(to_remove);
-                active[i] = false;
-                to_remove = faiss::IDSelectorRange(j,j+1);
-                index.remove_ids(to_remove);
-                active[j] = false;
-
-                // add new feature corresponding to contracted component
-                const faiss::Index::idx_t new_id = features.size()/d;
-                assert(new_id < max_nr_ids);
-                for(size_t l=0; l<d; ++l)
-                    features.push_back(features[i*d + l] + features[j*d + l]);
-                index.add_with_ids(1, features.data() + new_id*d, &new_id);
-                assert(active.size() == new_id);
-                active.push_back(true);
+                const size_t new_id = index.merge(i,j);
 
                 uf.merge(i, new_id);
                 uf.merge(j, new_id);
@@ -102,56 +76,53 @@ namespace DENSE_MULTICUT {
                 multicut_cost -= distance;
 
                 // find new nearest neighbor
-                const auto [nns, distance] = get_nearest_node(new_id);
-                if(distance > 0.0)
+                if(index.nr_nodes() > 1)
                 {
-                    pq.push({distance, {new_id,nns}});
-                    pq_pair[nns].push_back(new_id);
-                }
+                    std::vector<faiss::Index::idx_t> new_query;
+                    new_query.push_back(new_id);
 
-                // check nearest neighbors of i and j and see whether they need new nearest neighbors
-                {
-                    auto tmp_nodes = pq_pair[i];
+                    for(const faiss::Index::idx_t k : pq_pair[i])
+                        if(index.node_active(k))
+                            new_query.push_back(k);
+                    for(const faiss::Index::idx_t k : pq_pair[j])
+                        if(index.node_active(k))
+                            new_query.push_back(k);
+
                     pq_pair[i].clear();
-                    for(const size_t k : tmp_nodes)
+                    pq_pair[j].clear();
+
+                    const auto [new_nns, new_distances] = index.get_nearest_nodes(new_query);
+                    for(size_t c=0; c<new_nns.size(); ++c)
                     {
-                        if(active[k])
+                        if(new_distances[c] > 0.0)
                         {
-                            const auto [nns, distance] = get_nearest_node(k);
-                            if(distance > 0.0)
-                            {
-                                pq.push({distance, {k, nns}});
-                                pq_pair[nns].push_back(k);
-                            }
-                        }
-                    }
-                }
-                {
-                    auto tmp_nodes = pq_pair[i];
-                    pq_pair[i].clear();
-                    for(const size_t k : pq_pair[j])
-                    {
-                        if(active[k])
-                        {
-                            const auto [nns, distance] = get_nearest_node(k);
-                            if(distance > 0.0)
-                            {
-                                pq.push({distance, {k, nns}});
-                                pq_pair[nns].push_back(k);
-                            }
+                            pq.push({new_distances[c], {new_nns[c], new_query[c]}});
+                            pq_pair[new_nns[c]].push_back(new_query[c]);
                         }
                     }
                 }
             }
         }
 
-        std::cout << "[dense gaec] final nr clusters = " << uf.count() - (max_nr_ids - active.size()) << "\n";
-        std::cout << "[dense gaec] final multicut cost = " << multicut_cost << "\n";
+        std::cout << "[dense gaec " << index_str << "] final nr clusters = " << uf.count() - (max_nr_ids - index.max_id_nr()-1) << "\n";
+        std::cout << "[dense gaec " << index_str << "] final multicut cost = " << multicut_cost << "\n";
 
         std::vector<size_t> component_labeling(n);
         for(size_t i=0; i<n; ++i)
             component_labeling[i] = uf.find(i);
         return component_labeling;
+    }
+
+    std::vector<size_t> dense_gaec_flat_index(const size_t n, const size_t d, std::vector<float> features)
+    {
+        std::cout << "Dense GAEC with flat index\n";
+        return dense_gaec_impl(n, d, features, "IDMap,Flat");
+    }
+
+    std::vector<size_t> dense_gaec_hnsw(const size_t n, const size_t d, std::vector<float> features)
+    {
+        std::cout << "Dense GAEC with HNSW index\n";
+        return dense_gaec_impl(n, d, features, "IDMap,HNSW");
     }
 
 }

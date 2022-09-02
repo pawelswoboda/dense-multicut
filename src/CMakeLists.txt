@@ -1,8 +1,14 @@
+add_library(feature_index feature_index.cpp)
+target_link_libraries(feature_index dense-multicut faiss)
+
 add_library(dense_multicut_utils dense_multicut_utils.cpp)
 target_link_libraries(dense_multicut_utils dense-multicut)
 
 add_library(dense_gaec dense_gaec.cpp)
-target_link_libraries(dense_gaec PRIVATE faiss dense-multicut dense_multicut_utils)
+target_link_libraries(dense_gaec PRIVATE faiss dense-multicut dense_multicut_utils feature_index)
+
+add_library(dense_gaec_parallel dense_gaec_parallel.cpp)
+target_link_libraries(dense_gaec_parallel PRIVATE faiss dense-multicut dense_multicut_utils feature_index)
 
 add_library(dense_gaec_adj_matrix dense_gaec_adj_matrix.cpp)
 target_link_libraries(dense_gaec_adj_matrix PRIVATE dense-multicut dense_multicut_utils)

@@ -1,6 +1,7 @@
 #include "dense_gaec_adj_matrix.h"
 #include "dense_multicut_utils.h"
 #include "union_find.hxx"
+#include "time_measure_util.h"
 
 #include <iostream>
 #include <vector>
@@ -12,6 +13,8 @@ namespace DENSE_MULTICUT {
 
     std::vector<size_t> dense_gaec_adj_matrix(const size_t n, const size_t d, std::vector<float> features)
     {
+        MEASURE_FUNCTION_EXECUTION_TIME;
+        std::cout << "[dense gaec adj matrix] compute multicut on graph with " << n << " nodes with " << d << " feature dimensions\n";
         double multicut_cost = cost_disconnected(n, d, features);
 
         //std::vector<std::tuple<float,u_int32_t>> edges(((n-1)*n)/2, 0.0);
