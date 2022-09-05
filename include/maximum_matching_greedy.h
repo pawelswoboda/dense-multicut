@@ -3,12 +3,14 @@
 #include <array>
 #include <algorithm>
 #include <numeric>
+#include "time_measure_util.h"
 
 namespace DENSE_MULTICUT {
 
     template<typename I_ITERATOR, typename J_ITERATOR, typename COST_ITERATOR>
     std::vector<std::array<size_t,2>> maximum_matching_greedy(I_ITERATOR i_begin, I_ITERATOR i_end, J_ITERATOR j_begin, COST_ITERATOR cost_begin)
     {
+        MEASURE_CUMULATIVE_FUNCTION_EXECUTION_TIME;
         const size_t m = std::distance(i_begin, i_end);
         const size_t n = std::max( *std::max_element(i_begin, i_end), *std::max_element(j_begin, j_begin+m)) + 1;
 

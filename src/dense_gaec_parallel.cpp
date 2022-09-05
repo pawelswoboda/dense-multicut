@@ -26,7 +26,8 @@ namespace DENSE_MULTICUT {
         auto pq_comp = [](const pq_type& a, const pq_type& b) { return std::get<0>(a) < std::get<0>(b); };
         std::priority_queue<pq_type, std::vector<pq_type>, decltype(pq_comp)> pq(pq_comp);
 
-        while(index.nr_nodes() > 0)
+        size_t iter = 0;
+        for(; index.nr_nodes() > 0; ++iter)
         {
             std::vector<faiss::Index::idx_t> all_active_indices;
             for(faiss::Index::idx_t idx=0; idx<=index.max_id_nr(); ++idx)
@@ -57,11 +58,11 @@ namespace DENSE_MULTICUT {
 
             const std::vector<std::array<size_t,2>> matching = maximum_matching_greedy(i.begin(), i.end(), j.begin(), positive_distances.begin());
 
-            std::cout << "[dense gaec parallel " << index_str << "] matching gave " << matching.size() << " edges to contract\n";
+            //std::cout << "[dense gaec parallel " << index_str << "] matching gave " << matching.size() << " edges to contract\n";
 
             for(const auto [i,j] : matching)
             {
-                std::cout << "[dense gaec parallel] contract edge " << i << " <-> " << j << " with edge cost " << index.inner_product(i,j) << "\n";
+                //std::cout << "[dense gaec parallel] contract edge " << i << " <-> " << j << " with edge cost " << index.inner_product(i,j) << "\n";
                 const faiss::Index::idx_t new_id = index.merge(i,j);
                 multicut_cost -= index.inner_product(i,j);
                 uf.merge(i, new_id);
@@ -69,7 +70,10 @@ namespace DENSE_MULTICUT {
             }
         }
 
-        std::cout << "[dense gaec parallel " << index_str << "] final nr clusters = " << uf.count() - (max_nr_ids - index.max_id_nr()-1) << "\n";
+        const size_t nr_contracted_edges = n - (uf.count() - (max_nr_ids - index.max_id_nr()-1)); 
+        std::cout << "[dense gaec parallel " << index_str << "] "
+            << "final nr clusters = " << n - nr_contracted_edges 
+            << " after " << iter << " iterations, i.e. " << nr_contracted_edges/double(iter) << " contractions per iteration\n";
         std::cout << "[dense gaec parallel " << index_str << "] final multicut cost = " << multicut_cost << "\n";
 
         std::vector<size_t> component_labeling(n);
@@ -81,12 +85,12 @@ namespace DENSE_MULTICUT {
     std::vector<size_t> dense_gaec_parallel_flat_index(const size_t n, const size_t d, std::vector<float> features)
     {
         std::cout << "Dense parallel GAEC with flat index\n";
-        return dense_gaec_parallel_impl(n, d, features, "IDMap,Flat");
+        return dense_gaec_parallel_impl(n, d, features, "Flat");
     }
 
     std::vector<size_t> dense_gaec_parallel_hnsw(const size_t n, const size_t d, std::vector<float> features)
     {
         std::cout << "Dense parallel GAEC with HNSW index\n";
-        return dense_gaec_parallel_impl(n, d, features, "IDMap,HNSW");
+        return dense_gaec_parallel_impl(n, d, features, "HNSW");
     }
 }

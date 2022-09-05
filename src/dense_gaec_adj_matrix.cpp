@@ -88,7 +88,7 @@ namespace DENSE_MULTICUT {
             if(e_q.stamp < edge_stamp(i,j) || active[i] == false | active[j] == false)
                 continue;
 
-            std::cout << "[dense multicut adjacency matrix] contracting edge " << i << " and " << j << " with edge cost " << edge_cost(i,j) << "\n";
+            //std::cout << "[dense multicut adjacency matrix] contracting edge " << i << " and " << j << " with edge cost " << edge_cost(i,j) << "\n";
 
             uf.merge(i,j);
             multicut_cost -= edge_cost(i,j);

@@ -24,12 +24,17 @@ void test_exact_lookup(const size_t n, const size_t d, const std::string index_s
         std::vector<faiss::Index::idx_t> all_indices(n); 
         std::iota(all_indices.begin(), all_indices.end(), 0);
         const auto [nns, distances] = index.get_nearest_nodes(all_indices);
+        const size_t nr_nns = all_indices.size()/2;
+        const auto [nns2, distances2] = index.get_nearest_nodes(all_indices, nr_nns);
+        test(nns2.size() == distances2.size() && nns2.size() == nr_nns*all_indices.size());
 
         for(size_t i=0; i<n; ++i)
         {
             const auto [nn, dist] = index.get_nearest_node(i);
             test(nns[i] == nn);
+            test(nns2[i*nr_nns] == nn);
             test(std::abs(distances[i] - dist) < 1e-7*d);
+            test(std::abs(dist - index.inner_product(all_indices[i],nn)) < d*1e-7);
         }
     }
 
@@ -47,13 +52,17 @@ void test_exact_lookup(const size_t n, const size_t d, const std::string index_s
                 all_indices.push_back(idx);
 
         const auto [nns, distances] = index.get_nearest_nodes(all_indices);
+        const size_t nr_nns = all_indices.size()/2;
+        const auto [nns2, distances2] = index.get_nearest_nodes(all_indices, nr_nns);
+        test(nns2.size() == distances2.size() && nns2.size() == nr_nns*all_indices.size());
 
         for(size_t i=0; i<all_indices.size(); ++i)
         {
             const auto [nn, dist] = index.get_nearest_node(all_indices[i]);
             test(nns[i] == nn);
+            test(nns2[i*nr_nns] == nn);
             test(std::abs(distances[i] - dist) < 1e-7*d);
-            test(std::abs(dist - index.inner_product(i,nn)) < d*1e-7);
+            test(std::abs(dist - index.inner_product(all_indices[i],nn)) < d*1e-7);
         }
     }
 }
@@ -64,5 +73,5 @@ int main(int argc, char** argv)
     const std::vector<size_t> nr_dims = {16,32,64,128,256,512,1024};
     for(const size_t n : nr_nodes)
         for(const size_t d : nr_dims)
-            test_exact_lookup(n, d, "IDMap,Flat");
+            test_exact_lookup(n, d, "Flat");
 }

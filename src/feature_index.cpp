@@ -1,4 +1,5 @@
 #include "feature_index.h"
+#include "time_measure_util.h"
 #include <faiss/index_factory.h>
 #include <faiss/impl/AuxIndexStructures.h>
 #include <cassert>
@@ -15,16 +16,20 @@ namespace DENSE_MULTICUT {
         index(index_factory(d, index_str.c_str(), faiss::MetricType::METRIC_INNER_PRODUCT)),
         nr_active(n)
     {
-        //index = index_factory(d, index_str.c_str(), faiss::MetricType::METRIC_INNER_PRODUCT);
-        std::vector<faiss::Index::idx_t> ids(n);
-        std::iota(ids.begin(), ids.end(), 0);
-        index->add_with_ids(n, features.data(), ids.data());
+        //std::vector<faiss::Index::idx_t> ids(n);
+        //std::iota(ids.begin(), ids.end(), 0);
+        {
+            MEASURE_CUMULATIVE_FUNCTION_EXECUTION_TIME2("faiss add");
+            //index->add_with_ids(n, features.data(), ids.data());
+            index->add(n, features.data());
+        }
 
         active = std::vector<char>(n, true);
     }
 
     std::tuple<faiss::Index::idx_t, float> feature_index::get_nearest_node(const faiss::Index::idx_t id) const
     {
+        MEASURE_CUMULATIVE_FUNCTION_EXECUTION_TIME;
         if(can_remove)
         {
             float distance[2];
@@ -60,6 +65,7 @@ namespace DENSE_MULTICUT {
 
     std::tuple<std::vector<faiss::Index::idx_t>, std::vector<float>> feature_index::get_nearest_nodes(const std::vector<faiss::Index::idx_t>& nodes) const
     {
+        MEASURE_CUMULATIVE_FUNCTION_EXECUTION_TIME2("faiss get nearest nodes");
         assert(nodes.size() > 0);
         //std::cout << "[feature index] search nearest neighbors for " << nodes.size() << " nodes\n";
 
@@ -121,7 +127,10 @@ namespace DENSE_MULTICUT {
                         for(size_t l=0; l<d; ++l)
                             query_features[c*d + l] = features[cur_nodes[c]*d + l];
 
-                    index->search(cur_nodes.size(), query_features.data(), nr_lookups, distances.data(), nns.data());
+                    {
+                        MEASURE_CUMULATIVE_FUNCTION_EXECUTION_TIME2("faiss search");
+                        index->search(cur_nodes.size(), query_features.data(), nr_lookups, distances.data(), nns.data());
+                    }
 
                     for(size_t c=0; c<cur_nodes.size(); ++c)
                     {
@@ -146,9 +155,81 @@ namespace DENSE_MULTICUT {
             return {return_nns, return_distances};
         }
     }
+    
+    std::tuple<std::vector<faiss::Index::idx_t>, std::vector<float>> feature_index::get_nearest_nodes(const std::vector<faiss::Index::idx_t>& nodes, const size_t k) const
+    {
+        MEASURE_CUMULATIVE_FUNCTION_EXECUTION_TIME2("faiss get k nearest nodes");
+        assert(k > 0);
+        assert(k < nr_nodes());
+
+        assert(!can_remove); // for now!
+        {
+            std::vector<faiss::Index::idx_t> return_nns(k*nodes.size());
+            std::vector<float> return_distances(k*nodes.size());
+
+            std::unordered_map<faiss::Index::idx_t, faiss::Index::idx_t> node_map;
+            std::unordered_map<faiss::Index::idx_t, u_int32_t> nns_count;
+            node_map.reserve(nodes.size());
+            nns_count.reserve(nodes.size());
+            for(size_t c=0; c<nodes.size(); ++c)
+            {
+                node_map.insert({nodes[c], c});
+                nns_count.insert({nodes[c], 0});
+            }
+
+            for(size_t _nr_lookups=k+1; _nr_lookups<2+2*max_id_nr(); _nr_lookups*=2)
+            {
+                const size_t nr_lookups = std::min(_nr_lookups, size_t(index->ntotal));
+                if(node_map.size() > 0)
+                {
+                    std::vector<faiss::Index::idx_t> cur_nodes;
+                    for(const auto [node, idx] : node_map)
+                        cur_nodes.push_back(node);
+                    std::vector<faiss::Index::idx_t> nns(cur_nodes.size() * nr_lookups);
+                    std::vector<float> distances(cur_nodes.size() * nr_lookups);
+
+                    std::vector<float> query_features(node_map.size()*d);
+                    for(size_t c=0; c<cur_nodes.size(); ++c)
+                        for(size_t l=0; l<d; ++l)
+                            query_features[c*d + l] = features[cur_nodes[c]*d + l];
+
+                    {
+                        MEASURE_CUMULATIVE_FUNCTION_EXECUTION_TIME2("faiss search");
+                        index->search(cur_nodes.size(), query_features.data(), nr_lookups, distances.data(), nns.data());
+                    }
+
+                    for(size_t c=0; c<cur_nodes.size(); ++c)
+                    {
+                        size_t nns_count = 0;
+                        for(size_t l=0; l<nr_lookups; ++l)
+                        {
+                            if(nns[c*nr_lookups + l] < active.size() && nns[c*nr_lookups + l] != cur_nodes[c] && active[nns[nr_lookups*c + l]] == true)
+                            {
+                                assert(node_map.count(cur_nodes[c]) > 0);
+                                return_nns[node_map[cur_nodes[c]] * k + nns_count] = nns[c*nr_lookups + l];
+                                return_distances[node_map[cur_nodes[c]] * k + nns_count] = distances[c*nr_lookups + l];
+                                nns_count++;
+                                if(nns_count == k)
+                                {
+                                    node_map.erase(cur_nodes[c]);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            for(size_t i=0; i<nodes.size(); ++i)
+                for(size_t l=0; l<k; ++l)
+                    assert(return_nns[i*k + l] != nodes[i]);
+            return {return_nns, return_distances};
+        }
+    }
 
     void feature_index::remove(const faiss::Index::idx_t i)
     {
+        MEASURE_CUMULATIVE_FUNCTION_EXECUTION_TIME;
         assert(i < active.size());
         assert(active[i] == true);
         active[i] = false;
@@ -163,6 +244,7 @@ namespace DENSE_MULTICUT {
 
     faiss::Index::idx_t feature_index::merge(const faiss::Index::idx_t i, const faiss::Index::idx_t j)
     {
+        MEASURE_CUMULATIVE_FUNCTION_EXECUTION_TIME;
         assert(i != j);
         assert(i < active.size());
         assert(j < active.size());
@@ -183,13 +265,14 @@ namespace DENSE_MULTICUT {
         const faiss::Index::idx_t new_id = features.size()/d;
         for(size_t l=0; l<d; ++l)
             features.push_back(features[i*d + l] + features[j*d + l]);
-        index->add_with_ids(1, features.data() + new_id*d, &new_id);
-        assert(active.size() == new_id);
+        //index->add_with_id(1, features.data() + new_id*d, &new_id);
+        index->add(1, features.data() + new_id*d);
+        //assert(active.size() == new_id);
         active.push_back(true);
         return new_id;
     }
 
-    float feature_index::inner_product(const faiss::Index::idx_t i, const faiss::Index::idx_t j)
+    double feature_index::inner_product(const faiss::Index::idx_t i, const faiss::Index::idx_t j)
     {
         assert(i < active.size());
         assert(j < active.size());

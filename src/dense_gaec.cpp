@@ -66,7 +66,7 @@ namespace DENSE_MULTICUT {
             // check if edge is still present in contracted graph. This is true if both endpoints have not been contracted
             if(index.node_active(i) && index.node_active(j))
             {
-                std::cout << "[dense multicut " << index_str << "] contracting edge " << i << " and " << j << " with edge cost " << distance << "\n";
+                //std::cout << "[dense multicut " << index_str << "] contracting edge " << i << " and " << j << " with edge cost " << distance << "\n";
                 // contract edge:
                 const size_t new_id = index.merge(i,j);
 
@@ -116,13 +116,13 @@ namespace DENSE_MULTICUT {
     std::vector<size_t> dense_gaec_flat_index(const size_t n, const size_t d, std::vector<float> features)
     {
         std::cout << "Dense GAEC with flat index\n";
-        return dense_gaec_impl(n, d, features, "IDMap,Flat");
+        return dense_gaec_impl(n, d, features, "Flat");
     }
 
     std::vector<size_t> dense_gaec_hnsw(const size_t n, const size_t d, std::vector<float> features)
     {
         std::cout << "Dense GAEC with HNSW index\n";
-        return dense_gaec_impl(n, d, features, "IDMap,HNSW");
+        return dense_gaec_impl(n, d, features, "HNSW");
     }
 
 }
