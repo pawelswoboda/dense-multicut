@@ -12,3 +12,8 @@ target_link_libraries(dense_gaec_parallel PRIVATE faiss dense-multicut dense_mul
 
 add_library(dense_gaec_adj_matrix dense_gaec_adj_matrix.cpp)
 target_link_libraries(dense_gaec_adj_matrix PRIVATE dense-multicut dense_multicut_utils)
+
+add_library(dense_features_parser dense_features_parser.cpp)
+
+add_executable(dense_multicut_text_input dense_multicut_text_input.cpp)
+target_link_libraries(dense_multicut_text_input PRIVATE dense_features_parser dense-multicut faiss dense_gaec dense_gaec_parallel dense_gaec_adj_matrix)
