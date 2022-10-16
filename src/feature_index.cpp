@@ -272,7 +272,7 @@ namespace DENSE_MULTICUT {
         return new_id;
     }
 
-    double feature_index::inner_product(const faiss::Index::idx_t i, const faiss::Index::idx_t j)
+    double feature_index::inner_product(const faiss::Index::idx_t i, const faiss::Index::idx_t j) const
     {
         assert(i < active.size());
         assert(j < active.size());
