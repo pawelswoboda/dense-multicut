@@ -41,6 +41,7 @@ namespace DENSE_MULTICUT {
         auto pq_comp = [](const pq_type& a, const pq_type& b) { return std::get<0>(a) < std::get<0>(b); };
         std::priority_queue<pq_type, std::vector<pq_type>, decltype(pq_comp)> pq(pq_comp);
         {
+            MEASURE_CUMULATIVE_FUNCTION_EXECUTION_TIME2("Initial KNN construction");
             std::vector<faiss::Index::idx_t> all_indices(n);
             std::iota(all_indices.begin(), all_indices.end(), 0);
             const auto [nns, distances] = index.get_nearest_nodes(all_indices, k);
