@@ -74,7 +74,7 @@ namespace DENSE_MULTICUT {
         // If no new neighbours are found within KNNs of i and j, then search in whole graph for k_ many nearest neighbours.
         if (nn_ij.size() == 0)
         {
-            std::cout<<"[incremental nns] Performing brute force NN search.\n";
+            std::cout<<"[incremental nns] Performing brute force NN search on "<<index.nr_nodes()<<" nodes \n";
             const std::vector<faiss::Index::idx_t> new_id_to_search = {new_id};
             const auto [nns, distances] = index.get_nearest_nodes(new_id_to_search, std::min(k_, index.nr_nodes() - 1));
             for (int idx = 0; idx != nns.size(); ++idx)
