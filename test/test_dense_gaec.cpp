@@ -18,9 +18,9 @@ void test_random_problem(const size_t n, const size_t d)
         features[i] = distr(generator); 
 
     dense_gaec_incremental_nn(n, d, features, 9);
-    // dense_gaec_adj_matrix(n, d, features);
-    // dense_gaec_flat_index(n, d, features);
-    // dense_gaec_hnsw(n, d, features);
+    dense_gaec_adj_matrix(n, d, features);
+    dense_gaec_flat_index(n, d, features);
+    dense_gaec_hnsw(n, d, features);
     dense_gaec_parallel_flat_index(n, d, features);
     dense_gaec_parallel_hnsw(n, d, features);
 }
