@@ -11,7 +11,7 @@
 
 namespace DENSE_MULTICUT {
 
-    std::vector<size_t> dense_gaec_adj_matrix(const size_t n, const size_t d, std::vector<float> features)
+    std::vector<size_t> dense_gaec_adj_matrix(const size_t n, const size_t d, std::vector<float> features, const bool track_dist_offset)
     {
         MEASURE_FUNCTION_EXECUTION_TIME;
         std::cout << "[dense gaec adj matrix] compute multicut on graph with " << n << " nodes with " << d << " feature dimensions\n";
@@ -46,8 +46,12 @@ namespace DENSE_MULTICUT {
             assert(i != j);
             assert(i < n && j < n);
             float s = 0.0;
-            for(size_t l=0; l<d; ++l)
+            for(size_t l=0; l<d-1; ++l)
                 s += features[i*d+l] * features[j*d+l];
+            if (track_dist_offset)
+                s -= features[i*d+d-1] * features[j*d+d-1];
+            else
+                s += features[i*d+d-1] * features[j*d+d-1];
             return s;
         };
 

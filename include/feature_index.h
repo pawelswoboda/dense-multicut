@@ -8,18 +8,19 @@ namespace DENSE_MULTICUT {
 
     class feature_index {
         public:
-            feature_index(const size_t d, const size_t n, const std::vector<float>& _features, const std::string& index_str);
+            feature_index(const size_t d, const size_t n, const std::vector<float>& _features, const std::string& index_str, const bool track_dist_offset = false);
 
             void remove(const faiss::Index::idx_t i);
             faiss::Index::idx_t merge(const faiss::Index::idx_t i, const faiss::Index::idx_t j);
             double inner_product(const faiss::Index::idx_t i, const faiss::Index::idx_t j) const;
             std::tuple<std::vector<faiss::Index::idx_t>, std::vector<float>> get_nearest_nodes(const std::vector<faiss::Index::idx_t>& nodes) const;
             std::tuple<std::vector<faiss::Index::idx_t>, std::vector<float>> get_nearest_nodes(const std::vector<faiss::Index::idx_t>& nodes, const size_t k) const;
-            std::tuple<faiss::Index::idx_t, float> get_nearest_node(const faiss::Index::idx_t node) const;
+            std::tuple<faiss::Index::idx_t, float> get_nearest_node(const faiss::Index::idx_t node);
 
             bool node_active(const faiss::Index::idx_t idx) const;
             size_t max_id_nr() const;
             size_t nr_nodes() const;
+            std::vector<faiss::Index::idx_t> get_active_nodes() const;
 
         private:
             const size_t d;
@@ -28,5 +29,6 @@ namespace DENSE_MULTICUT {
             std::vector<char> active;
             size_t nr_active = 0;
             const bool can_remove = false;
+            const bool track_dist_offset_ = false;
     };
 }
