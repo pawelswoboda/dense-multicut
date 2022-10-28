@@ -1,6 +1,9 @@
 PROJECT(dense-multicut LANGUAGES CXX)    
 cmake_minimum_required(VERSION 3.2)    
 
+include_directories(external/CLI11/include)
+include_directories(include)
+
 add_library(dense-multicut INTERFACE)    
 target_include_directories(dense-multicut INTERFACE include/)    
 target_compile_features(dense-multicut INTERFACE cxx_std_17)    

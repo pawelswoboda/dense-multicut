@@ -10,11 +10,12 @@
 
 namespace DENSE_MULTICUT {
 
-    feature_index::feature_index(const size_t _d, const size_t n, const std::vector<float>& _features, const std::string& index_str)
+    feature_index::feature_index(const size_t _d, const size_t n, const std::vector<float>& _features, const std::string& index_str, const bool track_dist_offset)
         : d(_d),
         features(_features),
         index(index_factory(d, index_str.c_str(), faiss::MetricType::METRIC_INNER_PRODUCT)),
-        nr_active(n)
+        nr_active(n),
+        track_dist_offset_(track_dist_offset)
     {
         //std::vector<faiss::Index::idx_t> ids(n);
         //std::iota(ids.begin(), ids.end(), 0);
@@ -27,9 +28,11 @@ namespace DENSE_MULTICUT {
         active = std::vector<char>(n, true);
     }
 
-    std::tuple<faiss::Index::idx_t, float> feature_index::get_nearest_node(const faiss::Index::idx_t id) const
+    std::tuple<faiss::Index::idx_t, float> feature_index::get_nearest_node(const faiss::Index::idx_t id)
     {
         MEASURE_CUMULATIVE_FUNCTION_EXECUTION_TIME;
+        if(track_dist_offset_)
+            features[id*d+d-1] *= -1.0;
         if(can_remove)
         {
             float distance[2];
@@ -61,6 +64,8 @@ namespace DENSE_MULTICUT {
             }
             throw std::runtime_error("Could not find nearest neighbor");
         }
+        if(track_dist_offset_)
+            features[id*d+d-1] *= -1.0;
     }
 
     std::tuple<std::vector<faiss::Index::idx_t>, std::vector<float>> feature_index::get_nearest_nodes(const std::vector<faiss::Index::idx_t>& nodes) const
@@ -75,9 +80,12 @@ namespace DENSE_MULTICUT {
             std::vector<faiss::Index::idx_t> nns(2*nodes.size());
             std::vector<float> query_features(nodes.size()*d);
             for(size_t c=0; c<nodes.size(); ++c)
+            {
                 for(size_t l=0; l<d; ++l)
                     query_features[c*d + l] = features[nodes[c]*d + l];
-
+                if(track_dist_offset_)
+                    query_features[c*d + d-1] *= -1.0;
+            }
             index->search(nodes.size(), query_features.data(), 2, distances.data(), nns.data());
 
             std::vector<faiss::Index::idx_t> return_nns(nodes.size());
@@ -89,11 +97,15 @@ namespace DENSE_MULTICUT {
                 if(nns[2*c] == nodes[c])
                 {
                     assert(nns[c*2+1] != nodes[c]);
-                    std::tie(return_nns[c], return_distances[c]) = {nns[c*2+1], distances[c*2+1]};
+                    return_nns[c] = nns[c*2+1];
+                    return_distances[c] = distances[c*2+1];
+                    // std::tie(return_nns[c], return_distances[c]) = {nns[c*2+1], distances[c*2+1]};
                 }
                 else // duplicate entry
                 {
-                    std::tie(return_nns[c], return_distances[c]) = {nns[c*2], distances[c*2]};
+                    return_nns[c] = nns[c*2];
+                    return_distances[c] = distances[c*2];
+                    // std::tie(return_nns[c], return_distances[c]) = {nns[c*2], distances[c*2]};
                 }
             }
 
@@ -124,9 +136,12 @@ namespace DENSE_MULTICUT {
 
                     std::vector<float> query_features(node_map.size()*d);
                     for(size_t c=0; c<cur_nodes.size(); ++c)
+                    {
                         for(size_t l=0; l<d; ++l)
                             query_features[c*d + l] = features[cur_nodes[c]*d + l];
-
+                        if(track_dist_offset_)
+                            query_features[c*d + d-1] *= -1.0;
+                    }
                     {
                         MEASURE_CUMULATIVE_FUNCTION_EXECUTION_TIME2("faiss search");
                         index->search(cur_nodes.size(), query_features.data(), nr_lookups, distances.data(), nns.data());
@@ -190,8 +205,12 @@ namespace DENSE_MULTICUT {
 
                     std::vector<float> query_features(node_map.size()*d);
                     for(size_t c=0; c<cur_nodes.size(); ++c)
+                    {
                         for(size_t l=0; l<d; ++l)
                             query_features[c*d + l] = features[cur_nodes[c]*d + l];
+                        if(track_dist_offset_)
+                            query_features[c*d + d-1] *= -1.0;
+                    }
 
                     {
                         MEASURE_CUMULATIVE_FUNCTION_EXECUTION_TIME2("faiss search");
@@ -272,13 +291,17 @@ namespace DENSE_MULTICUT {
         return new_id;
     }
 
-    double feature_index::inner_product(const faiss::Index::idx_t i, const faiss::Index::idx_t j)
+    double feature_index::inner_product(const faiss::Index::idx_t i, const faiss::Index::idx_t j) const
     {
         assert(i < active.size());
         assert(j < active.size());
         float x = 0.0;
-        for(size_t l=0; l<d; ++l)
+        for(size_t l=0; l<d-1; ++l)
             x += features[i*d+l]*features[j*d+l];
+        if(track_dist_offset_)
+            x -= features[i*d+d-1]*features[j*d+d-1];
+        else
+            x += features[i*d+d-1]*features[j*d+d-1];
         return x;
     }
 
@@ -298,6 +321,17 @@ namespace DENSE_MULTICUT {
     {
         assert(nr_active == std::count(active.begin(), active.end(), true));
         return nr_active;
+    }
+
+    std::vector<faiss::Index::idx_t> feature_index::get_active_nodes() const
+    {
+        std::vector<faiss::Index::idx_t> active_nodes;
+        for (int i = 0; i != active.size(); ++i)
+        {
+            if (active[i])
+                active_nodes.push_back(i);
+        }
+        return active_nodes;
     }
 
 }

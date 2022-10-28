@@ -1,6 +1,7 @@
 #include "dense_gaec.h"
 #include "dense_gaec_parallel.h"
 #include "dense_gaec_adj_matrix.h"
+#include "dense_gaec_incremental_nn.h"
 #include <random>
 #include <iostream>
 
@@ -16,6 +17,7 @@ void test_random_problem(const size_t n, const size_t d)
     for(size_t i=0; i<n*d; ++i)
         features[i] = distr(generator); 
 
+    dense_gaec_incremental_nn(n, d, features, 9);
     dense_gaec_adj_matrix(n, d, features);
     dense_gaec_flat_index(n, d, features);
     dense_gaec_hnsw(n, d, features);

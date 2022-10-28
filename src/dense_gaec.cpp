@@ -22,10 +22,10 @@
 
 namespace DENSE_MULTICUT {
 
-    std::vector<size_t> dense_gaec_impl(const size_t n, const size_t d, std::vector<float> features, const std::string index_str)
+    std::vector<size_t> dense_gaec_impl(const size_t n, const size_t d, std::vector<float> features, const std::string index_str, const bool track_dist_offset)
     {
         MEASURE_FUNCTION_EXECUTION_TIME;
-        feature_index index(d, n, features, index_str);
+        feature_index index(d, n, features, index_str, track_dist_offset);
         assert(features.size() == n*d);
 
         std::cout << "[dense gaec " << index_str << "] Find multicut for " << n << " nodes with features of dimension " << d << "\n";
@@ -113,16 +113,16 @@ namespace DENSE_MULTICUT {
         return component_labeling;
     }
 
-    std::vector<size_t> dense_gaec_flat_index(const size_t n, const size_t d, std::vector<float> features)
+    std::vector<size_t> dense_gaec_flat_index(const size_t n, const size_t d, std::vector<float> features, const bool track_dist_offset)
     {
         std::cout << "Dense GAEC with flat index\n";
-        return dense_gaec_impl(n, d, features, "Flat");
+        return dense_gaec_impl(n, d, features, "Flat", track_dist_offset);
     }
 
-    std::vector<size_t> dense_gaec_hnsw(const size_t n, const size_t d, std::vector<float> features)
+    std::vector<size_t> dense_gaec_hnsw(const size_t n, const size_t d, std::vector<float> features, const bool track_dist_offset)
     {
         std::cout << "Dense GAEC with HNSW index\n";
-        return dense_gaec_impl(n, d, features, "HNSW");
+        return dense_gaec_impl(n, d, features, "HNSW", track_dist_offset);
     }
 
 }
