@@ -15,7 +15,7 @@ namespace DENSE_MULTICUT {
     {
         MEASURE_FUNCTION_EXECUTION_TIME;
         std::cout << "[dense gaec adj matrix] compute multicut on graph with " << n << " nodes with " << d << " feature dimensions\n";
-        double multicut_cost = cost_disconnected(n, d, features);
+        double multicut_cost = cost_disconnected(n, d, features, track_dist_offset);
 
         //std::vector<std::tuple<float,u_int32_t>> edges(((n-1)*n)/2, 0.0);
         std::vector<std::tuple<float,u_int32_t>> edges(n*n, {0.0, 0});
