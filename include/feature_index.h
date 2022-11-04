@@ -28,7 +28,6 @@ namespace DENSE_MULTICUT {
             std::vector<float> features;
             std::vector<char> active;
             size_t nr_active = 0;
-            const bool can_remove = false;
             const bool track_dist_offset_ = false;
     };
 }
