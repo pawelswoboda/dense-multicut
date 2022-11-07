@@ -30,7 +30,7 @@ namespace DENSE_MULTICUT {
 
         std::cout << "[dense gaec " << index_str << "] Find multicut for " << n << " nodes with features of dimension " << d << "\n";
 
-        double multicut_cost = cost_disconnected(n, d, features);
+        double multicut_cost = cost_disconnected(n, d, features, track_dist_offset);
 
         const size_t max_nr_ids = 2*n;
         union_find uf(max_nr_ids);
